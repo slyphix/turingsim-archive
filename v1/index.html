@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>JavaScript-Turing-Simulator</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style type="text/css">
+            #band .feld {
+                width: 30px;
+                height: 30px;
+                font-weight: bold;
+                text-align: center;
+                vertical-align: middle;
+                display: inline-block;
+                font-size: 20px;
+                border: 2px solid #667;
+                background-color: #eef;
+                margin: 0;
+                padding: 0;
+            }
+            #band {
+                transition: margin-left 0.1s linear;
+                margin-left: -16564px;
+                white-space: nowrap;
+                padding: 0;
+            }
+            #bandhalter {
+                width: 900px;
+                height: 34px;
+                border: 1px solid black;
+                background-color: #fff;
+                margin: 0 auto;
+                padding: 3px 0;
+                overflow: hidden;
+            }
+            #turing {
+                width: 1000px;
+                position: absolute;
+            }
+            #marker {
+                position: absolute;
+                
+                border: 3px solid black;
+                width: 38px;
+                height: 36px;
+                margin: 0 -19px;
+                position: absolute;
+                top: 0px;
+                left: 50%;
+            }
+            #content {
+                width: 1000px;
+                margin: 0 auto;
+                padding: 10px;
+                text-align: center;
+            }
+            #arrleft {
+                float: left;
+            }
+            #arrright {
+                float: right;
+            }
+            .arr {
+                margin-top: -4px;
+                font-weight: bold;
+                font-size: 40px;
+                display: inline-block;
+                border-radius: 2px;
+                background-color: #dde;
+                border: 1px solid #99b;
+                color: #99b;
+                padding: 0 8px;
+            }
+            #control div {
+                margin: 5px;
+            }
+            #speed {
+                width: 100px;
+            }
+            .space {
+                height: 60px;
+            }
+            .text {
+                font-weight: bold;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+            }
+            .feld {
+                width: 200px;
+            }
+            .but {
+                width: 140px;
+            }
+            #input {
+                width: 200px;
+                height: 250px;
+            }
+            #output {
+                width: 300px;
+                height: 200px;
+                background-color: #eee;
+            }
+            #config table td {
+                vertical-align: top;
+                margin: 20px;
+                padding: 5px;
+            }
+            #config div {
+                margin: 5px;
+            }
+            .center {
+                margin: 0 auto;
+            }
+            .aleft td {
+                text-align: left;
+            }
+            #copy {
+                text-align: right;
+                font-weight: normal;
+                font-size: 10px;
+                padding: 3px;
+            }
+            #clear {
+                overflow: hidden;
+                height: 0;
+                transition: 0.3s height;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: #f9f9ff;
+                font-family: Arial;
+                font-size: 16px;
+                font-weight: bold;
+            }
+        </style>
+        <script type="text/javascript">
+        window.onerror = function (n, d, z) {
+            alert("JavaScript - Fehler: " + n + "\nZeile " + z);
+        };
+        
+        function action(state, char, dir) {
+            this.state = state;
+            this.char = char;
+            this.dir = dir;
+        }
+        
+        OFFSET = 436; //13 * 34 - 6
+        
+        currentState = 1; //zustand
+        currentPosition = 500; //zeigerposition
+        donext = false; //schritte durchgehen
+        haltState = false; //haltzustand erreicht
+        installed = false; //programm installiert
+        transitions = 0;
+        
+        function message (msg) {
+            document.getElementById("output").value += msg + "\n";
+            document.getElementById("output").scrollTop = document.getElementById("output").scrollHeight;
+        }
+        function haltmessage (reason) {
+            message("Machine halted:\n" + reason + "\n" + transitions + " total transitions\n" + getNonBlank() + " non-blank characters on tape");
+        }
+        function getNonBlank () {
+            var count = 0;
+            for (var i = 0; i < 1000; i++) {
+                if (document.getElementsByClassName("feld")[i].innerHTML !== "")
+                    count++;
+            }
+            return count;
+        }
+        function clearmsg () {
+            document.getElementById("output").value = "";
+        }
+        function onestep () {
+            if (!installed) { message("Error:\nNo program entered\n"); return; }
+            if (haltState) { message("Error:\nHalt state reached\n"); return; }
+            if (donext) { message("Already running"); return; }
+            nextStep();
+        }
+        function stop () {
+            if (!installed) { message("Error:\nNo program entered\n"); return; }
+            if (haltState) { message("Error:\nHalt state reached\n"); return; }
+            if (!donext) { message("Machine ist not running"); return; }
+            haltmessage("User interrupt");
+            donext = false;
+            clearTimeout(nextStepDelay);
+        }
+        function rstart () {
+            if (!installed) { message("Error:\nNo program entered\n"); return; }
+            if (donext) { message("Already running"); return; }
+            message("Running...");
+            reset();
+            donext = true;
+            haltState = false;
+            nextStep();
+        }
+        function resume () {
+            if (!installed) { message("Error:\nNo program entered\n"); return; }
+            if (haltState) { message("Error:\nHalt state reached\n"); return; }
+            if (donext) { message("Already running"); return; }
+            message("Running...");
+            donext = true;
+            nextStep();
+        }
+        function reset () {
+            currentState = 1;
+            transitions = 0;
+            var stateind = document.getElementById("state");
+            stateind.innerHTML = currentState;
+            var posind = document.getElementById("pos");
+            posind.innerHTML = currentPosition - 500;
+            currentPosition = 500;
+            var band = document.getElementById("band");
+            band.style.transition = "none";
+            band.style.marginLeft = -(500 * 34) + OFFSET + "px";
+            
+            for (var i = 0; i < 1000; i++) {
+                document.getElementsByClassName("feld")[i].innerHTML = chars.charAt(i-500).replace(/ /, "") || "";
+            }
+            haltState = false;
+        }
+        
+        function nextStep () {
+            var felder = document.getElementsByClassName("feld");
+            var band = document.getElementById("band");
+            var right = document.getElementById("arrright");
+            var left = document.getElementById("arrleft");
+            var speed = document.getElementById("speed");
+            var stateind = document.getElementById("state");
+            var posind = document.getElementById("pos");
+
+            right.style.color = "#99b";
+            right.style.backgroundColor = "#dde";
+            left.style.color = "#99b";
+            left.style.backgroundColor = "#dde";
+                
+            var value = felder[currentPosition].innerHTML;
+            value = (value === "") ? "_" : value;
+            if (!actions[currentState]) {
+                haltmessage("No applicable transition found");
+                haltState = true;
+                donext = false;
+                return;
+            }    
+            var action = actions[currentState][value];
+            
+            if (!action) {
+                haltmessage("No applicable transition found");
+                haltState = true;
+                donext = false;
+                return;
+            }
+
+            transitions++;
+            currentState = action.state;
+            stateind.innerHTML = currentState;
+            var value = action.char;
+            value = (value === "_") ? "" : value;
+            felder[currentPosition].innerHTML = value;
+            
+            var delay = (speed.value === "calc") ? 0 : (speed.value === "very fast") ? 50 : (speed.value === "fast") ? 300 : 700;
+            band.style.transition = (speed.value === "very fast") ? "none" : "1s margin-left linear";
+            band.style.transitionDuration = delay / 2 / 1000 + "s";
+
+            currentPosition += (action.dir === ">") ? 1 : (action.dir === "<") ? -1 : 0;
+            band.style.marginLeft = -(currentPosition * 34) + OFFSET + "px";
+            
+            posind.innerHTML = currentPosition - 500;
+                
+            if (currentState !== "H") {
+                if (action.dir === ">") {
+                    right.style.color = "#dde";
+                    right.style.backgroundColor = "#99b";
+                }
+                if (action.dir === "<") {
+                    left.style.color = "#dde";
+                    left.style.backgroundColor = "#99b";
+                }
+                
+                if (donext)
+                    nextStepDelay = setTimeout("nextStep();", delay);
+            } else {
+                donext = false;
+                haltState = true;
+                haltmessage("Halt state reached");
+            }
+        }
+        
+        function clearq () {
+            document.getElementById("clear").style.height = "25px";
+        }
+        
+        function clearconfirm () {
+            document.getElementById("clear").style.height = "0";
+            document.getElementById("input").value = "";
+        }
+        
+        function clearcancel () {
+            document.getElementById("clear").style.height = "0";
+        }
+        
+        actions = new Array();
+        function install () {
+            if (donext) { message("Cannot install while running..."); return; }
+            donext = false;
+            message("Entering program...");
+            var input = document.getElementById("input").value;
+            input = input.replace(/ +/g, " ");
+            if (input === "") { message("Error:\nNo programming entered\n"); return; }
+            var lines = input.split("\n");
+            actions = new Array();
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i] === "") continue;
+                var halves = lines[i].split(" ");
+                var cond = halves[0].split(",");
+                var act = halves[1].split(",");
+                var state = cond[0];
+                var char = cond[1];
+                var astate = act[0];
+                var achar = act[1];
+                var dir = act[2] || "";
+                
+                if (!actions[state])
+                    actions[state] = new Array();
+
+                actions[state][char] = new action(astate, achar, dir);
+            }
+            chars = document.getElementById("chars").value;
+            if (chars.length > 500) { message("Error:\nToo many characters to write\n"); return; }
+            donext = false;
+            installed = true;
+            message("Machine programmed successfully");
+            reset();
+        }
+        
+        function init () {
+            var band = document.getElementById("band");
+            for (var i = 0; i < 1000; i++) {
+                var div = document.createElement("div");
+                div.innerHTML = "";
+                div.className = "feld";
+                band.appendChild(div);
+            }
+        }
+        window.onload = init;
+        </script>
+    </head>
+    <body>
+        <div id="copy">&copy; jh 2014/15</div>
+        <div id="content">
+            <div id="control">
+                <div>
+                State: <span id="state">N</span> - Position: <span id="pos">0</span>
+                </div>
+                <div>
+                    <input type="button" value="Start" onclick="rstart()">
+                    <input type="button" value="Stop" onclick="stop()">
+                    <input type="button" value="Resume" onclick="resume()">
+                    <input type="button" value="Step" onclick="onestep()">
+                    Speed:
+                    <select size="1" id="speed" class="text">
+                        <option value="slow">Slow</option>
+                        <option value="fast">Fast</option>
+                        <option value="very fast">Very Fast</option>
+                        <option value="calc" disabled>Compute</option>
+                    </select>
+                </div>
+            </div>
+            <div id="arrleft" class="arr">&lt;</div>
+            <div id="arrright" class="arr">&gt;</div>
+            <div id="turing">
+                <div id="marker">
+                </div>
+                <div id="bandhalter">
+                    <div id="band">
+                    </div>
+                </div>
+            </div>
+            <div class="space"></div>
+            <div id="config">
+                <table class="center aleft"><tr>
+                        <td>Machine name</td>
+                        <td><input type="text" class="text feld" value="Info 14/15"></td>
+                    </tr><tr>
+                        <td>Initial characters on tape</td>
+                        <td><input type="text" class="text feld" id="chars"></td>
+                </tr></table>
+                <table class="center"><tr>
+                        <td>Programming</td>
+                        <td>
+                            <input type="button" value="Clear Program" class="but" onclick="clearq()">
+                            <input type="button" value="Install Program" class="but" onclick="install()">
+                            <div id="clear">
+                                Clear Program? 
+                                <input type="button" value="Yes" onclick="clearconfirm()">
+                                <input type="button" value="No" onclick="clearcancel()">
+                            </div>
+                        </td>
+                    </tr><tr>
+                        <td>
+                            <textarea id="input" class="text"></textarea><br>
+                        </td>
+                        <td>
+                            <textarea id="output" class="text" disabled></textarea><br>
+                            <input type="button" value="Clear Message Box" class="but" onclick="clearmsg()">
+                        </td>
+                </tr></table>
+            </div>
+        </div>
+    </body>
+</html>
